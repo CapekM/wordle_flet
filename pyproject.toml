@@ -4,9 +4,6 @@ version = "0.1.0"
 description = ""
 readme = "README.md"
 requires-python = ">=3.10"
-authors = [
-    { name = "Flet developer", email = "you@example.com" }
-]
 dependencies = [
     "flet>=0.81.0"
 ]
@@ -16,6 +13,8 @@ dev = [
     "flet-cli>=0.81.0",
     "flet-desktop-light>=0.81.0",
     "flet-web>=0.81.0",
+    "mypy>=1.19.1",
+    "ruff>=0.15.4",
 ]
 
 [tool.flet]
@@ -26,3 +25,18 @@ copyright = "Copyright (C) 2023-2026 by Flet"
 
 [tool.flet.app]
 path = "src"
+
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "B", "A", "C4", "UP"]
+ignore = ["E501", "B008"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
