@@ -93,13 +93,37 @@ def main(page: ft.Page) -> None:
             game_over = True
             input_field.disabled = True
             submit_button.disabled = True
+            play_again_button.visible = True
             input_field.update()
             submit_button.update()
+            play_again_button.update()
             result_text.update()
             return
 
         result_text.value = f"Attempt {current_attempt} of {max_attempts}"
         result_text.color = ft.Colors.WHITE
+        result_text.update()
+
+    def reset_game(e: ft.Event[ft.Button]) -> None:
+        nonlocal current_attempt, game_over, secret_word
+        current_attempt = 0
+        game_over = False
+        secret_word = "peach"  # TODO random.choice(word_list)
+
+        attempts_column.controls.clear()
+        attempts_column.update()
+
+        input_field.value = ""
+        input_field.disabled = False
+        input_field.update()
+
+        submit_button.disabled = False
+        submit_button.update()
+
+        play_again_button.visible = False
+        play_again_button.update()
+
+        result_text.value = ""
         result_text.update()
 
     input_field = ft.TextField(
@@ -120,6 +144,12 @@ def main(page: ft.Page) -> None:
         on_click=check_guess_click,
     )
 
+    play_again_button = ft.Button(
+        content=ft.Text("Play Again"),
+        on_click=reset_game,
+        visible=False,
+    )
+
     result_text = ft.Text("", size=16)
 
     page.add(
@@ -132,6 +162,7 @@ def main(page: ft.Page) -> None:
                     attempts_column,
                     input_field,
                     submit_button,
+                    play_again_button,
                     result_text,
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
