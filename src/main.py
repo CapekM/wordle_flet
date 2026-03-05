@@ -6,7 +6,7 @@ def main(page: ft.Page) -> None:
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.vertical_alignment = ft.MainAxisAlignment.START
 
-    word_list: list[str] = ["apple", "melon", "peach"]  # TODO better word list
+    word_list: list[str] = ["apple", "melon", "peach", "ppppp"]  # TODO better word list
     secret_word = "peach"  # TODO random.choice(word_list)
     max_attempts = 6
 
@@ -15,15 +15,27 @@ def main(page: ft.Page) -> None:
 
     def evaluate_guess(guess: str) -> list[tuple[str, ft.Colors]]:
         """Return list of (letter, color) tuples."""
-        result = []
+        colors: list[ft.Colors | None] = [None] * 5
+        remaining: dict[str, int] = {}
+
+        # Pass 1: greens — tally unmatched secret letters
         for i, letter in enumerate(guess):
             if letter == secret_word[i]:
-                result.append((letter, ft.Colors.GREEN))  # correct position
-            elif letter in secret_word:
-                result.append((letter, ft.Colors.ORANGE))  # wrong position
+                colors[i] = ft.Colors.GREEN
             else:
-                result.append((letter, ft.Colors.RED))  # not in word
-        return result
+                remaining[secret_word[i]] = remaining.get(secret_word[i], 0) + 1
+
+        # Pass 2: oranges / reds
+        for i, letter in enumerate(guess):
+            if colors[i] is not None:
+                continue
+            if remaining.get(letter, 0) > 0:
+                colors[i] = ft.Colors.ORANGE
+                remaining[letter] -= 1
+            else:
+                colors[i] = ft.Colors.RED
+
+        return [(letter, colors[i]) for i, letter in enumerate(guess)]  # type: ignore[misc]
 
     def show_dialog(title: str, message: str) -> None:
         page.show_dialog(
