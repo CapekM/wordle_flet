@@ -32,6 +32,7 @@ class WordleGame(ft.Column):
         self.current_attempt: int = 0
         self.game_over: bool = False
         self._current_guess: str = ""
+        self._past_results: list[list[tuple[str, ft.Colors]]] = []
 
         self._attempts_column = ft.Column(
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -50,6 +51,16 @@ class WordleGame(ft.Column):
                     ft.ControlState.DISABLED: ft.Colors.GREY_400,
                     ft.ControlState.DEFAULT: ft.Colors.BLUE_600,
                 },
+                padding=ft.padding.symmetric(horizontal=24, vertical=12),
+                shape=ft.RoundedRectangleBorder(radius=6),
+            ),
+            height=48,
+        )
+        self._suggest_button = ft.Button(
+            content=ft.Text("Suggest", color=ft.Colors.WHITE),
+            on_click=self._on_suggest_click,
+            style=ft.ButtonStyle(
+                bgcolor=ft.Colors.ORANGE_700,
                 padding=ft.padding.symmetric(horizontal=24, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=6),
             ),
@@ -74,7 +85,7 @@ class WordleGame(ft.Column):
             self._guess_boxes,
             keyboard_widget,
             ft.Row(
-                controls=[self._submit_button, self._play_again_button],
+                controls=[self._submit_button, self._suggest_button, self._play_again_button],
                 alignment=ft.MainAxisAlignment.CENTER,
                 spacing=12,
             ),
@@ -169,6 +180,7 @@ class WordleGame(ft.Column):
         self.current_attempt += 1
 
         letter_results = self._evaluate_guess(guess)
+        self._past_results.append(letter_results)
         spans = [
             ft.TextSpan(
                 text=letter.upper(),
@@ -194,6 +206,8 @@ class WordleGame(ft.Column):
             self.game_over = True
             self._submit_button.visible = False
             self._submit_button.update()
+            self._suggest_button.visible = False
+            self._suggest_button.update()
             self._play_again_button.visible = True
             self._play_again_button.update()
             self._result_text.update()
@@ -256,6 +270,78 @@ class WordleGame(ft.Column):
             if letter_lower in key_chars:
                 key.apply_hint(color)
                 return
+
+    def _suggest_word(self) -> str | None:
+        """Return a random word consistent with all past guess results.
+
+        Derives three kinds of constraints from self._past_results:
+        - greens:       word[i] must be a specific letter
+        - orange_banned: letter must appear in the word, but not at these positions
+        - counts:       for each letter, the word must contain at least N
+                        occurrences; if the same letter also appeared grey in
+                        that guess, exactly N occurrences are required
+        """
+        greens: dict[int, str] = {}
+        orange_banned: dict[str, set[int]] = {}
+        min_counts: dict[str, int] = {}
+        exact_counts: dict[str, int] = {}
+
+        for result in self._past_results:
+            # Count green+orange occurrences per letter in this one guess
+            go_count: dict[str, int] = {}
+            grey_letters: set[str] = set()
+
+            for letter, color in result:
+                if color in (ft.Colors.GREEN, ft.Colors.ORANGE_300):
+                    go_count[letter] = go_count.get(letter, 0) + 1
+                elif color == ft.Colors.GREY_700:
+                    grey_letters.add(letter)
+
+            for i, (letter, color) in enumerate(result):
+                if color == ft.Colors.GREEN:
+                    greens[i] = letter
+                elif color == ft.Colors.ORANGE_300:
+                    orange_banned.setdefault(letter, set()).add(i)
+
+            for letter, count in go_count.items():
+                min_counts[letter] = max(min_counts.get(letter, 0), count)
+                if letter in grey_letters:
+                    # Grey alongside green/orange pins the exact count
+                    exact_counts[letter] = max(exact_counts.get(letter, 0), count)
+
+            for letter in grey_letters:
+                if letter not in go_count:
+                    # Pure grey: letter is not in the word at all
+                    exact_counts[letter] = 0
+
+        def matches(word: str) -> bool:
+            for pos, letter in greens.items():
+                if word[pos] != letter:
+                    return False
+            for letter, positions in orange_banned.items():
+                if letter not in word:
+                    return False
+                for pos in positions:
+                    if word[pos] == letter:
+                        return False
+            for letter, count in exact_counts.items():
+                if word.count(letter) != count:
+                    return False
+            for letter, count in min_counts.items():
+                if letter not in exact_counts and word.count(letter) < count:
+                    return False
+            return True
+
+        candidates = [w for w in self.word_list if matches(w)]
+        return random.choice(candidates) if candidates else None
+
+    def _on_suggest_click(self, e: ft.Event[ft.Button]) -> None:
+        word = self._suggest_word()
+        if word is None:
+            self._show_dialog("No suggestion", "No matching word found.")
+            return
+        self._current_guess = word
+        self._update_guess_display()
 
 
 def _swap_coupled(letter: str) -> str:
