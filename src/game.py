@@ -1,14 +1,17 @@
+import asyncio
 import itertools
 import random
 
 import flet as ft
 
 from const import (
+    FLIP_DURATION_MS,
     HINT_ABSENT,
     HINT_CORRECT,
     HINT_MISPLACED,
     MAX_ATTEMPTS,
     TILE_SIZE,
+    TILE_STAGGER_MS,
     WORD_LEN,
 )
 from keyboard import (
@@ -37,6 +40,7 @@ class WordleGame(ft.Column):
 
         self.current_attempt: int = 0
         self.game_over: bool = False
+        self._animating: bool = False
         self._current_guess: str = ""
         self._past_results: list[list[tuple[str, ft.Colors]]] = []
 
@@ -125,6 +129,7 @@ class WordleGame(ft.Column):
                     border=ft.border.all(2, ft.Colors.YELLOW_700 if is_active else ft.Colors.GREY_400),
                     border_radius=4,
                     bgcolor=ft.Colors.WHITE,
+                    animate=ft.Animation(FLIP_DURATION_MS, ft.AnimationCurve.EASE_IN),
                 )
                 row_texts.append(txt)
                 row_boxes.append(box)
@@ -167,7 +172,7 @@ class WordleGame(ft.Column):
         )
 
     def _on_key_press(self, e: ft.Event[KeyboardKey]) -> None:
-        if self.game_over:
+        if self.game_over or self._animating:
             return
         self._current_guess = apply_key_to_guess(self._current_guess, e.control.label, WORD_LEN)
         self._update_guess_display()
@@ -201,7 +206,7 @@ class WordleGame(ft.Column):
         )
 
     def _check_guess(self) -> None:
-        if self.game_over:
+        if self.game_over or self._animating:
             return
 
         guess = self._current_guess.lower()
@@ -221,17 +226,50 @@ class WordleGame(ft.Column):
         letter_results = self._evaluate_guess(guess)
         self._past_results.append(letter_results)
 
-        for i, (_letter, color) in enumerate(letter_results):
+        self._animating = True
+        self._submit_button.disabled = True
+        self._submit_button.update()
+        self.page.run_task(self._reveal_and_finish, attempt_row, letter_results, guess)
+
+    async def _reveal_and_finish(
+        self,
+        attempt_row: int,
+        letter_results: list[tuple[str, ft.Colors]],
+        guess: str,
+    ) -> None:
+        """Animate the tile flip reveal, then handle win/loss logic."""
+        for i, (letter, color) in enumerate(letter_results):
             box = self._grid_boxes[attempt_row][i]
             txt = self._grid_texts[attempt_row][i]
+
+            # Phase 1 — flip out (height: TILE_SIZE → 0, EASE_IN)
+            box.animate = ft.Animation(FLIP_DURATION_MS, ft.AnimationCurve.EASE_IN)
+            box.height = 0
+            box.update()
+            await asyncio.sleep(FLIP_DURATION_MS / 1_000)
+
+            # Midpoint — swap colours while invisible
             box.bgcolor = color
             box.border = None
             txt.color = ft.Colors.WHITE
+
+            # Phase 2 — flip in (height: 0 → TILE_SIZE, EASE_OUT)
+            box.animate = ft.Animation(FLIP_DURATION_MS, ft.AnimationCurve.EASE_OUT)
+            box.height = TILE_SIZE
             box.update()
 
-        for letter, color in letter_results:
+            # Apply keyboard hint as each tile reveals
             self._apply_key_hint(letter, color)
 
+            # Stagger before next tile
+            await asyncio.sleep(TILE_STAGGER_MS / 1_000)
+
+        # Wait for last tile's flip-in to finish
+        remaining = max(0.0, (FLIP_DURATION_MS - TILE_STAGGER_MS) / 1_000)
+        if remaining > 0:
+            await asyncio.sleep(remaining)
+
+        # Win/loss logic
         win = guess == self.secret_word
         if win or self.current_attempt >= self.max_attempts:
             if win:
@@ -249,12 +287,13 @@ class WordleGame(ft.Column):
             self._play_again_button.visible = True
             self._play_again_button.update()
             self._result_text.update()
-            return
+        else:
+            self._result_text.value = f"Attempt {self.current_attempt} of {self.max_attempts}"
+            self._result_text.color = ft.Colors.WHITE
+            self._result_text.update()
+            self._update_guess_display()
 
-        self._result_text.value = f"Attempt {self.current_attempt} of {self.max_attempts}"
-        self._result_text.color = ft.Colors.WHITE
-        self._result_text.update()
-        self._update_guess_display()
+        self._animating = False
 
     def _guess_in_word_list(self, guess: str) -> bool:
         """Check whether the guess (or any coupled-letter variant) is in the word list.
@@ -375,6 +414,8 @@ class WordleGame(ft.Column):
         return random.choice(candidates) if candidates else None
 
     def _on_suggest_click(self, e: ft.Event[ft.Button]) -> None:
+        if self._animating:
+            return
         word = self._suggest_word()
         if word is None:
             self._show_dialog("No suggestion", "No matching word found.")
