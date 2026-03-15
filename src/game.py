@@ -1,6 +1,7 @@
 import asyncio
 import itertools
 import random
+from collections.abc import Callable
 
 import flet as ft
 
@@ -26,7 +27,8 @@ from words import WORD_LIST
 
 
 class WordleGame(ft.Column):
-    def __init__(self) -> None:
+    def __init__(self, on_home: Callable[[], None] | None = None) -> None:
+        self._on_home = on_home
         super().__init__(
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=16,
@@ -87,8 +89,30 @@ class WordleGame(ft.Column):
         )
         self._result_text = ft.Text("", size=16)
 
+        home_button = ft.IconButton(
+            icon=ft.Icons.ARROW_BACK,
+            on_click=lambda _: self._on_home() if self._on_home else None,
+            tooltip="Back to menu",
+            visible=self._on_home is not None,
+        )
+        # Fixed-width spacer on the right mirrors the icon button so the title
+        # stays truly centred regardless of text length.
+        icon_btn_width = 40
+        header = ft.Row(
+            controls=[
+                home_button,
+                ft.Container(
+                    content=ft.Text("Wordle", size=32, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
+                    expand=True,
+                    alignment=ft.Alignment(0, 0),
+                ),
+                ft.Container(width=icon_btn_width, visible=self._on_home is not None),
+            ],
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
         self.controls = [
-            ft.Text("Wordle", size=32, weight=ft.FontWeight.BOLD),
+            header,
             grid_widget,
             keyboard_widget,
             ft.Row(
