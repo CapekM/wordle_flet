@@ -10,6 +10,8 @@ from const import (
     HINT_CORRECT,
     HINT_MISPLACED,
     MAX_ATTEMPTS,
+    POP_DURATION_MS,
+    POP_SCALE,
     TILE_SIZE,
     TILE_STAGGER_MS,
     WORD_LEN,
@@ -130,6 +132,8 @@ class WordleGame(ft.Column):
                     border_radius=4,
                     bgcolor=ft.Colors.WHITE,
                     animate=ft.Animation(FLIP_DURATION_MS, ft.AnimationCurve.EASE_IN),
+                    scale=1.0,
+                    animate_scale=ft.Animation(POP_DURATION_MS, ft.AnimationCurve.EASE_OUT),
                 )
                 row_texts.append(txt)
                 row_boxes.append(box)
@@ -174,8 +178,26 @@ class WordleGame(ft.Column):
     def _on_key_press(self, e: ft.Event[KeyboardKey]) -> None:
         if self.game_over or self._animating:
             return
+        old_guess = self._current_guess
         self._current_guess = apply_key_to_guess(self._current_guess, e.control.label, WORD_LEN)
         self._update_guess_display()
+
+        # Pop the tile
+        if self._current_guess != old_guess:
+            pop_col = len(self._current_guess) - 1
+            box = self._grid_boxes[self.current_attempt][pop_col]
+            assert isinstance(self.page, ft.Page)
+            self.page.run_task(self._pop_tile, box)
+
+    async def _pop_tile(self, box: ft.Container) -> None:
+        """Brief uniform scale-up then back to 1.0 — typewriter pop on letter entry."""
+        box.animate_scale = ft.Animation(POP_DURATION_MS, ft.AnimationCurve.EASE_OUT)
+        box.scale = POP_SCALE
+        box.update()
+        await asyncio.sleep(POP_DURATION_MS / 1_000)
+        box.animate_scale = ft.Animation(POP_DURATION_MS, ft.AnimationCurve.EASE_IN)
+        box.scale = 1.0
+        box.update()
 
     def _update_guess_display(self) -> None:
         row = self.current_attempt
