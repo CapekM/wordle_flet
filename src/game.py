@@ -3,18 +3,24 @@ import random
 
 import flet as ft
 
+from const import (
+    HINT_ABSENT,
+    HINT_CORRECT,
+    HINT_MISPLACED,
+    MAX_ATTEMPTS,
+    TILE_SIZE,
+    WORD_LEN,
+)
 from keyboard import (
     COUPLE_LETTERS,
     KEYBOARD_ROWS,
     KeyboardKey,
     apply_key_to_guess,
 )
-from words import WORD_LEN, WORD_LIST
+from words import WORD_LIST
 
 
 class WordleGame(ft.Column):
-    MAX_ATTEMPTS: int = 6
-
     def __init__(self) -> None:
         super().__init__(
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -27,18 +33,14 @@ class WordleGame(ft.Column):
         """Initialise (or re-initialise) game state and rebuild the control tree."""
         self.word_list = WORD_LIST
         self.secret_word = random.choice(self.word_list)
-        self.max_attempts = self.MAX_ATTEMPTS
+        self.max_attempts = MAX_ATTEMPTS
 
         self.current_attempt: int = 0
         self.game_over: bool = False
         self._current_guess: str = ""
         self._past_results: list[list[tuple[str, ft.Colors]]] = []
 
-        self._attempts_column = ft.Column(
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=4,
-        )
-        self._guess_boxes = self._build_guess_boxes()
+        grid_widget = self._build_grid()
         self._keyboard_keys: dict[str, KeyboardKey] = {}
         keyboard_widget = self._build_keyboard()
 
@@ -81,8 +83,7 @@ class WordleGame(ft.Column):
 
         self.controls = [
             ft.Text("Wordle", size=32, weight=ft.FontWeight.BOLD),
-            self._attempts_column,
-            self._guess_boxes,
+            grid_widget,
             keyboard_widget,
             ft.Row(
                 controls=[self._submit_button, self._suggest_button, self._play_again_button],
@@ -92,24 +93,56 @@ class WordleGame(ft.Column):
             self._result_text,
         ]
 
-    def _build_guess_boxes(self) -> ft.Row:
-        """Return a Row of WORD_LEN letter-display boxes."""
-        self._guess_box_texts: list[ft.Text] = [
-            ft.Text("", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK) for _ in range(WORD_LEN)
-        ]
-        boxes: list[ft.Control] = [
-            ft.Container(
-                content=txt,
-                width=48,
-                height=48,
-                alignment=ft.Alignment(0, 0),
-                border=ft.border.all(2, ft.Colors.GREY_400),
-                border_radius=4,
-                bgcolor=ft.Colors.WHITE,
+    def _build_grid(self) -> ft.Column:
+        """Build the full 6×5 guess grid; populates _grid_texts and _grid_boxes.
+
+        All rows are visible from the start. The active cell (where the next
+        letter will land) is shown with a darker border so the player always
+        knows their current position. Row 0 / cell 0 starts as the active cell.
+        """
+        self._grid_texts: list[list[ft.Text]] = []
+        self._grid_boxes: list[list[ft.Container]] = []
+
+        rows: list[ft.Control] = []
+        for row_idx in range(MAX_ATTEMPTS):
+            row_texts: list[ft.Text] = []
+            row_boxes: list[ft.Container] = []
+            cells: list[ft.Control] = []
+            for col_idx in range(WORD_LEN):
+                txt = ft.Text(
+                    "",
+                    size=20,
+                    weight=ft.FontWeight.BOLD,
+                    color=ft.Colors.BLACK,
+                )
+                # First cell of the first row starts highlighted (active).
+                is_active = row_idx == 0 and col_idx == 0
+                box = ft.Container(
+                    content=txt,
+                    width=TILE_SIZE,
+                    height=TILE_SIZE,
+                    alignment=ft.Alignment(0, 0),
+                    border=ft.border.all(2, ft.Colors.YELLOW_700 if is_active else ft.Colors.GREY_400),
+                    border_radius=4,
+                    bgcolor=ft.Colors.WHITE,
+                )
+                row_texts.append(txt)
+                row_boxes.append(box)
+                cells.append(box)
+            self._grid_texts.append(row_texts)
+            self._grid_boxes.append(row_boxes)
+            rows.append(
+                ft.Row(
+                    controls=cells,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=6,
+                )
             )
-            for txt in self._guess_box_texts
-        ]
-        return ft.Row(controls=boxes, alignment=ft.MainAxisAlignment.CENTER, spacing=6)
+        return ft.Column(
+            controls=rows,
+            spacing=6,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
 
     def _build_keyboard(self) -> ft.Column:
         """Build the on-screen keyboard; populates self._keyboard_keys."""
@@ -140,10 +173,16 @@ class WordleGame(ft.Column):
         self._update_guess_display()
 
     def _update_guess_display(self) -> None:
-        for i, txt in enumerate(self._guess_box_texts):
-            txt.value = self._current_guess[i].upper() if i < len(self._current_guess) else ""
-            txt.update()
-        self._submit_button.disabled = len(self._current_guess) != WORD_LEN
+        row = self.current_attempt
+        n = len(self._current_guess)
+        for i in range(WORD_LEN):
+            txt = self._grid_texts[row][i]
+            box = self._grid_boxes[row][i]
+            txt.value = self._current_guess[i].upper() if i < n else ""
+            # The next empty slot gets the yellow border; all others use default.
+            box.border = ft.border.all(2, ft.Colors.YELLOW_700 if i == n else ft.Colors.GREY_400)
+            box.update()
+        self._submit_button.disabled = n != WORD_LEN
         self._submit_button.update()
 
     def _on_submit_click(self, e: ft.Event[ft.Button]) -> None:
@@ -176,20 +215,19 @@ class WordleGame(ft.Column):
             return
 
         self._current_guess = ""
-        self._update_guess_display()
+        attempt_row = self.current_attempt
         self.current_attempt += 1
 
         letter_results = self._evaluate_guess(guess)
         self._past_results.append(letter_results)
-        spans = [
-            ft.TextSpan(
-                text=letter.upper(),
-                style=ft.TextStyle(color=color, weight=ft.FontWeight.BOLD, size=20),
-            )
-            for letter, color in letter_results
-        ]
-        self._attempts_column.controls.append(ft.Text(spans=spans, size=20))
-        self._attempts_column.update()
+
+        for i, (_letter, color) in enumerate(letter_results):
+            box = self._grid_boxes[attempt_row][i]
+            txt = self._grid_texts[attempt_row][i]
+            box.bgcolor = color
+            box.border = None
+            txt.color = ft.Colors.WHITE
+            box.update()
 
         for letter, color in letter_results:
             self._apply_key_hint(letter, color)
@@ -216,6 +254,7 @@ class WordleGame(ft.Column):
         self._result_text.value = f"Attempt {self.current_attempt} of {self.max_attempts}"
         self._result_text.color = ft.Colors.WHITE
         self._result_text.update()
+        self._update_guess_display()
 
     def _guess_in_word_list(self, guess: str) -> bool:
         """Check whether the guess (or any coupled-letter variant) is in the word list.
@@ -242,7 +281,7 @@ class WordleGame(ft.Column):
         # Pass 1: greens
         for i, letter in enumerate(guess):
             if letter == self.secret_word[i]:
-                colors[i] = ft.Colors.GREEN
+                colors[i] = HINT_CORRECT
             else:
                 remaining[self.secret_word[i]] = remaining.get(self.secret_word[i], 0) + 1
 
@@ -251,10 +290,10 @@ class WordleGame(ft.Column):
             if colors[i] is not None:
                 continue
             if remaining.get(letter, 0) > 0:
-                colors[i] = ft.Colors.ORANGE_300
+                colors[i] = HINT_MISPLACED
                 remaining[letter] -= 1
             else:
-                colors[i] = ft.Colors.GREY_700
+                colors[i] = HINT_ABSENT
 
         # Every slot is filled by this point; walrus filters out the None type.
         return [(letter, c) for i, letter in enumerate(guess) if (c := colors[i]) is not None]
@@ -292,15 +331,15 @@ class WordleGame(ft.Column):
             grey_letters: set[str] = set()
 
             for letter, color in result:
-                if color in (ft.Colors.GREEN, ft.Colors.ORANGE_300):
+                if color in (HINT_CORRECT, HINT_MISPLACED):
                     go_count[letter] = go_count.get(letter, 0) + 1
-                elif color == ft.Colors.GREY_700:
+                elif color == HINT_ABSENT:
                     grey_letters.add(letter)
 
             for i, (letter, color) in enumerate(result):
-                if color == ft.Colors.GREEN:
+                if color == HINT_CORRECT:
                     greens[i] = letter
-                elif color == ft.Colors.ORANGE_300:
+                elif color == HINT_MISPLACED:
                     orange_banned.setdefault(letter, set()).add(i)
 
             for letter, count in go_count.items():

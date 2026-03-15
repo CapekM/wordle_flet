@@ -3,7 +3,6 @@ from pathlib import Path
 ASSETS_DIR = Path(__file__).parent / "assets"
 FREQ_FILE = ASSETS_DIR / "kontext-freq_download-2026-03-14.txt"
 
-WORD_LEN = 5
 MIN_FREQ = 17
 
 

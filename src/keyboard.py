@@ -1,5 +1,7 @@
 import flet as ft
 
+from const import HINT_ABSENT, HINT_CORRECT, HINT_MISPLACED
+
 # ---------------------------------------------------------------------------
 # Layout
 # ---------------------------------------------------------------------------
@@ -28,9 +30,9 @@ DEFAULT_FG = ft.Colors.BLACK
 
 # Higher value = higher priority; a key never downgrades to a lower tier.
 COLOR_PRIORITY: dict[ft.Colors, int] = {
-    ft.Colors.GREEN: 2,
-    ft.Colors.ORANGE_300: 1,
-    ft.Colors.GREY_700: 0,
+    HINT_CORRECT: 2,
+    HINT_MISPLACED: 1,
+    HINT_ABSENT: 0,
 }
 
 # ---------------------------------------------------------------------------
