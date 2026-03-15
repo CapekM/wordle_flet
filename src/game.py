@@ -59,7 +59,7 @@ class WordleGame(ft.Column):
                     ft.ControlState.DISABLED: ft.Colors.GREY_400,
                     ft.ControlState.DEFAULT: ft.Colors.BLUE_600,
                 },
-                padding=ft.padding.symmetric(horizontal=24, vertical=12),
+                padding=ft.Padding.symmetric(horizontal=24, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=6),
             ),
             height=48,
@@ -69,7 +69,7 @@ class WordleGame(ft.Column):
             on_click=self._on_suggest_click,
             style=ft.ButtonStyle(
                 bgcolor=ft.Colors.ORANGE_700,
-                padding=ft.padding.symmetric(horizontal=24, vertical=12),
+                padding=ft.Padding.symmetric(horizontal=24, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=6),
             ),
             height=48,
@@ -80,7 +80,7 @@ class WordleGame(ft.Column):
             visible=False,
             style=ft.ButtonStyle(
                 bgcolor=ft.Colors.GREEN_600,
-                padding=ft.padding.symmetric(horizontal=24, vertical=12),
+                padding=ft.Padding.symmetric(horizontal=24, vertical=12),
                 shape=ft.RoundedRectangleBorder(radius=6),
             ),
             height=48,
@@ -128,7 +128,7 @@ class WordleGame(ft.Column):
                     width=TILE_SIZE,
                     height=TILE_SIZE,
                     alignment=ft.Alignment(0, 0),
-                    border=ft.border.all(2, ft.Colors.YELLOW_700 if is_active else ft.Colors.GREY_400),
+                    border=ft.Border.all(2, ft.Colors.YELLOW_700 if is_active else ft.Colors.GREY_400),
                     border_radius=4,
                     bgcolor=ft.Colors.WHITE,
                     animate=ft.Animation(FLIP_DURATION_MS, ft.AnimationCurve.EASE_IN),
@@ -207,7 +207,7 @@ class WordleGame(ft.Column):
             box = self._grid_boxes[row][i]
             txt.value = self._current_guess[i].upper() if i < n else ""
             # The next empty slot gets the yellow border; all others use default.
-            box.border = ft.border.all(2, ft.Colors.YELLOW_700 if i == n else ft.Colors.GREY_400)
+            box.border = ft.Border.all(2, ft.Colors.YELLOW_700 if i == n else ft.Colors.GREY_400)
             box.update()
         self._submit_button.disabled = n != WORD_LEN
         self._submit_button.update()

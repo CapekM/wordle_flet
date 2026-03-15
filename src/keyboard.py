@@ -57,7 +57,7 @@ class KeyboardKey(ft.Button):
             on_click=on_press,
             style=ft.ButtonStyle(
                 bgcolor=DEFAULT_BG,
-                padding=ft.padding.symmetric(horizontal=2, vertical=4),
+                padding=ft.Padding.symmetric(horizontal=2, vertical=4),
                 shape=ft.RoundedRectangleBorder(radius=4),
             ),
             width=52 if label == "<-" else 34,
