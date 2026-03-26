@@ -23,12 +23,15 @@ from keyboard import (
     KeyboardKey,
     apply_key_to_guess,
 )
+from stats import GameStats, build_stats_dialog, load_stats, record_loss, record_win, save_stats
 from words import WORD_LIST
 
 
 class WordleGame(ft.Column):
     def __init__(self, on_home: Callable[[], None] | None = None) -> None:
         self._on_home = on_home
+        self._stats = GameStats()
+        self._sp: ft.SharedPreferences | None = None
         super().__init__(
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=16,
@@ -95,9 +98,11 @@ class WordleGame(ft.Column):
             tooltip="Back to menu",
             visible=self._on_home is not None,
         )
-        # Fixed-width spacer on the right mirrors the icon button so the title
-        # stays truly centred regardless of text length.
-        icon_btn_width = 40
+        stats_button = ft.IconButton(
+            icon=ft.Icons.BAR_CHART,
+            on_click=lambda _: self._show_stats_dialog(),
+            tooltip="Statistics",
+        )
         header = ft.Row(
             controls=[
                 home_button,
@@ -106,7 +111,7 @@ class WordleGame(ft.Column):
                     expand=True,
                     alignment=ft.Alignment(0, 0),
                 ),
-                ft.Container(width=icon_btn_width, visible=self._on_home is not None),
+                stats_button,
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
@@ -122,6 +127,16 @@ class WordleGame(ft.Column):
             ),
             self._result_text,
         ]
+
+    def did_mount(self) -> None:
+        """Load persisted statistics once the control is mounted."""
+        assert isinstance(self.page, ft.Page)
+        self._sp = ft.SharedPreferences()
+        self.page.run_task(self._load_stats)
+
+    async def _load_stats(self) -> None:
+        assert self._sp is not None
+        self._stats = await load_stats(self._sp)
 
     def _build_grid(self) -> ft.Column:
         """Build the full 6×5 guess grid; populates _grid_texts and _grid_boxes.
@@ -254,6 +269,12 @@ class WordleGame(ft.Column):
         self.page.overlay.append(snackbar)
         self.page.update()
 
+    def _show_stats_dialog(self, last_attempt: int | None = None) -> None:
+        """Open the statistics dialog. Highlights *last_attempt* bar if provided."""
+        assert isinstance(self.page, ft.Page)
+        dialog = build_stats_dialog(self._stats, last_attempt=last_attempt)
+        self.page.show_dialog(dialog)
+
     def _check_guess(self) -> None:
         if self.game_over or self._animating:
             return
@@ -324,9 +345,14 @@ class WordleGame(ft.Column):
             if win:
                 self._result_text.value = f"Congratulations! You guessed: {self.secret_word}"
                 self._result_text.color = ft.Colors.GREEN
+                self._stats = record_win(self._stats, self.current_attempt)
             else:
                 self._result_text.value = f"You lost! The word was: {self.secret_word}"
                 self._result_text.color = ft.Colors.RED
+                self._stats = record_loss(self._stats)
+
+            if self._sp is not None:
+                await save_stats(self._sp, self._stats)
 
             self.game_over = True
             self._submit_button.visible = False
@@ -336,6 +362,12 @@ class WordleGame(ft.Column):
             self._play_again_button.visible = True
             self._play_again_button.update()
             self._result_text.update()
+
+            # Brief pause before showing stats so the player sees the result.
+            await asyncio.sleep(0.8)
+            self._show_stats_dialog(
+                last_attempt=self.current_attempt if win else None,
+            )
         else:
             self._result_text.value = f"Attempt {self.current_attempt} of {self.max_attempts}"
             self._result_text.color = ft.Colors.WHITE
