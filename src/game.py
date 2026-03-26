@@ -243,13 +243,16 @@ class WordleGame(ft.Column):
         self._setup()
         self.update()
 
-    def _show_dialog(self, title: str, message: str) -> None:
-        self.page.show_dialog(
-            ft.AlertDialog(
-                title=ft.Text(title),
-                content=ft.Text(message),
-            )
+    def _show_snackbar(self, message: str, color: ft.Colors = ft.Colors.WHITE) -> None:
+        """Show a brief non-blocking notification at the bottom of the screen."""
+        assert isinstance(self.page, ft.Page)
+        snackbar = ft.SnackBar(
+            content=ft.Text(message, color=color, weight=ft.FontWeight.W_500),
+            duration=2000,
+            open=True,
         )
+        self.page.overlay.append(snackbar)
+        self.page.update()
 
     def _check_guess(self) -> None:
         if self.game_over or self._animating:
@@ -258,11 +261,11 @@ class WordleGame(ft.Column):
         guess = self._current_guess.lower()
 
         if len(guess) != WORD_LEN:
-            self._show_dialog("Invalid Guess", f"Please enter a {WORD_LEN}-letter word.")
+            self._show_snackbar(f"Please enter a {WORD_LEN}-letter word.")
             return
 
         if not self._guess_in_word_list(guess):
-            self._show_dialog("Invalid Word", "This word is not in the list.")
+            self._show_snackbar("This word is not in the word list.")
             return
 
         self._current_guess = ""
@@ -464,7 +467,7 @@ class WordleGame(ft.Column):
             return
         word = self._suggest_word()
         if word is None:
-            self._show_dialog("No suggestion", "No matching word found.")
+            self._show_snackbar("No matching word found.")
             return
         self._current_guess = word
         self._update_guess_display()
